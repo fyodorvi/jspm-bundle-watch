@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>angular-jspm-starter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <div id="app-container">
+    <app></app>
+  </div>
+  <!-- build:js -->
+  <script src="jspm_packages/system.js"></script>
+  <script src="jspm.config.js"></script>
+  <script>
+    System.import('app/app').catch(console.error.bind(console));
+  </script>
+  <!-- endbuild -->
+</body>
+</html>

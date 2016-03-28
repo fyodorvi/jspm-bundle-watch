@@ -1,0 +1,42 @@
+{
+  "name": "jspm-watch",
+  "version": "0.1.0",
+  "description": "File watcher that manages JSPM bundling and cache invalidation",
+  "main": "index.js",
+  "files": ["index.js"],
+  "scripts": {
+    "test": "./node_modules/mocha/bin/mocha test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fyodorvi/jspm-watch.git"
+  },
+  "keywords": [
+    "jspm",
+    "watch",
+    "bundle"
+  ],
+  "author": "Fyodor Yakimchouk <fedor.jj@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/fyodorvi/jspm-watch/issues"
+  },
+  "homepage": "https://github.com/fyodorvi/jspm-watch#readme",
+  "dependencies": {
+    "chalk": "^1.1.1",
+    "chokidar": "^1.4.3",
+    "fancy-log": "^1.2.0",
+    "fs-extra": "^0.26.5",
+    "glob": "^7.0.3",
+    "globby": "^4.0.0",
+    "lodash": "^4.6.1",
+    "minimatch": "^3.0.0",
+    "string-format": "^0.5.0"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "istanbul": "^0.4.2",
+    "mocha": "^2.4.5",
+    "sinon": "^1.17.3"
+  }
+}

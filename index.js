@@ -715,7 +715,7 @@ class Watcher {
 
         state.inProgress = true;
 
-        return this._builder.bundle(options.input, options.output, options.buildOptions)
+        return this._builder.bundle(this._resolveModuleName(options.input, options.inputDir), options.output, options.buildOptions)
             .then(() => {
 
                 state.hasError = false;

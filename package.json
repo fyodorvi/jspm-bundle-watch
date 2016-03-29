@@ -3,7 +3,12 @@
   "version": "0.1.7",
   "description": "File watcher that manages JSPM bundling and cache invalidation",
   "main": "index.js",
-  "files": ["index.js"],
+  "files": [
+    "index.js"
+  ],
+  "engines": {
+    "node": ">=4.0.0"
+  },
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha test.js"
   },

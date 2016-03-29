@@ -599,6 +599,8 @@ class Watcher {
 
         if (this._testsBuildState.shouldUpdateImportFile) {
 
+            this._invalidate(this._resolveModuleName(this._conf.tests.input, this._conf.app.inputDir));
+
             this._debug('Generating tests import file');
 
             this._testsBuildState.importFile = '';

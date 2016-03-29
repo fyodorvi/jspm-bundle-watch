@@ -31,7 +31,7 @@ class Watcher {
                 buildingAfterError: 'Building after an error...',
                 buildingModules: 'Building app ({changes})...',
                 moduleChanged: 'Module \'{moduleName}\' was {event}.',
-                moduleNoBundle: 'Module \'{moduleName}\' was {event} but it\'s not in the build cache (not imported in the application)',
+                moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not imported in the application)',
                 buildSuccess: 'App build finished successfully.',
                 buildFail: 'App build failed\n{error}'
             },
@@ -40,7 +40,7 @@ class Watcher {
                 buildingAfterError: 'Building unit tests after an error...',
                 buildingModules: 'Building unit tests ({changes})...',
                 moduleChanged: 'Module \'{moduleName}\' was {event}.',
-                moduleNoBundle: 'Module \'{moduleName}\' was {event} but it\'s not in the build cache (not covered by unit tests)',
+                moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not covered by unit tests)',
                 buildSuccess: 'Unit tests build finished successfully.',
                 buildFail: 'Unit tests build failed\n{error}'
             }
@@ -298,8 +298,8 @@ class Watcher {
 
         return {
             configFile: path.resolve(pjson.configFile),
-            baseUrl: path.resolve(pjson.directories.baseURL),
-            packages: path.resolve(pjson.directories.packages)
+            baseUrl: pjson.directories.baseURL,
+            packages: pjson.directories.packages
         };
 
     }
@@ -313,7 +313,7 @@ class Watcher {
         if (source && source.input && source.output) {
 
             destination.input = this._path.resolve(source.input);
-            destination.inputDir = this._jspmConf.baseUrl || this._path.dirname(destination.input);
+            destination.inputDir = path.resolve(this._jspmConf.baseUrl) || this._path.dirname(destination.input);
             destination.output = this._path.resolve(source.output);
             destination.buildOptions = _.extend({
                 minify: false,
@@ -603,7 +603,11 @@ class Watcher {
 
             this._testsBuildState.importFile = '';
 
-            let files = this._globby.sync(this._conf.tests.watch);
+            let specFilesPattern = this._conf.tests.watch.concat(['!' + this._path.normalize(this._jspmConf.packages + '/**/*')]);
+
+            this._debug('Tests search pattern is ', specFilesPattern);
+
+            let files = this._globby.sync(specFilesPattern);
 
             files.forEach(file => {
 
@@ -611,11 +615,14 @@ class Watcher {
 
             });
 
+            this._debug('Tests import file is', this._testsBuildState.importFile);
+
             this._testsBuildState.shouldUpdateImportFile = false;
 
         }
 
         this._fs.writeFileSync(this._conf.tests.input, this._testsBuildState.importFile);
+        this._debug('Written tests import file to '+this._conf.tests.input);
 
     }
 

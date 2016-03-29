@@ -613,7 +613,7 @@ class Watcher {
 
             files.forEach(file => {
 
-                this._testsBuildState.importFile += "import './" + this._path.relative(this._path.dirname(this._conf.tests.input), file) + "';\n";
+                this._testsBuildState.importFile += "import './" + this._path.relative(this._path.dirname(this._conf.tests.input), file).replace(/\\/g, '/') + "';\n";
 
             });
 
@@ -641,7 +641,7 @@ class Watcher {
 
             if (!this._testsBuildState.hasError) {
 
-                this._fs.appendFileSync(this._conf.tests.output, "\n System.import('" + this._path.relative(this._conf.tests.inputDir, this._conf.tests.input) + "');");
+                this._fs.appendFileSync(this._conf.tests.output, "\n System.import('" + this._path.relative(this._conf.tests.inputDir, this._conf.tests.input).replace(/\\/g, '/') + "');");
 
             }
 

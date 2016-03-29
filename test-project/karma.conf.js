@@ -32,16 +32,16 @@ module.exports = function(config) {
 
     files: [
       {
-        pattern: './client/app/jspm_packages/system.js',
+        pattern: 'client/jspm_packages/system.js',
         watched: false
       },
       {
-        pattern: './client/app/jspm_packages/system.js.map',
+        pattern: 'client/jspm_packages/system.js.map',
         included: false,
         watched: false
       },
       {
-        pattern: './jspm.config.js',
+        pattern: 'jspm.config.js',
         watched: false
       },
       {
@@ -67,7 +67,7 @@ module.exports = function(config) {
 
     // level of logging
     // possible values: config.LOG_DISABLE || config.LOG_ERROR || config.LOG_WARN || config.LOG_INFO || config.LOG_DEBUG
-    logLevel: config.LOG_INFO,
+    logLevel: config.LOG_INFO
 
   });
 };

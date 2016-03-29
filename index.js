@@ -679,14 +679,21 @@ class Watcher {
                 hasError: this._appBuildState.hasError
             });
 
-            if (!this._started && this._conf.tests.skipBuild ) {
+            if (!this._started && this._conf.tests.skipBuild) {
 
                 this.emitter.emit('started');
                 this._started = true;
 
             }
 
-            this._processEventQueue();
+            if (this._conf.tests.skipBuild || this._appBuildState.hasError) {
+
+                //should not process event queue if unit tests build is enabled,
+                //cause it will eventually trigger queue processing (if app build has no error)
+
+                this._processEventQueue();
+
+            }
 
         });
 

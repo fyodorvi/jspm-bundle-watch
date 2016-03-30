@@ -1,6 +1,6 @@
 # JSPM Watch
 
-Inspired by [jspm-dev-builder]() JSPM Watch keeps your code changes in immediate sync with the browser no matter how big your app is and how many dependencies you have. JSPM Watch is designed for a long run: no matter what you do to your project files, whenever you add or remove new dependencies, have compilation errors, or simply switch branches - it should keep running, with no need to ever restart it. There's also an option to do simultaneous unit tests build, so you can do *tdd* and run the app at the same time.
+Inspired by [jspm-dev-builder](https://github.com/jackfranklin/jspm-dev-builder) JSPM Watch keeps your code changes in immediate sync with the browser no matter how big your app is and how many dependencies you have. JSPM Watch is designed for a long run: no matter what you do to your project files, whenever you add or remove new dependencies, have compilation errors, or simply switch branches - it should keep running, with no need to ever restart it. There's also an option to do simultaneous unit tests build, so you can do *tdd* and run the app at the same time.
 
 ## Why
 As your project grows it may take enormous amount of time to reload the application after a file change. JSPM Watch solves that issue by pre-bundling the app, which takes some time at first, but then upon any file change it invalidates it from cache and re-bundles the app, which takes about a second.

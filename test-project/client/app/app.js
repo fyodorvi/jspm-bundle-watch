@@ -4,8 +4,7 @@ import Common from './common/common';
 import Components from './components/components';
 import AppComponent from './app.component';
 import 'normalize.css';
-
-import _ from 'lodash';
+import React from 'react';
 
 let appModule = angular.module('app', [
 	'ui.router',

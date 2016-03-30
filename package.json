@@ -1,6 +1,6 @@
 {
   "name": "jspm-watch",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "File watcher that manages JSPM bundling and cache invalidation",
   "main": "index.js",
   "files": [
@@ -37,6 +37,9 @@
     "lodash": "^4.6.1",
     "minimatch": "^3.0.0",
     "string-format": "^0.5.0"
+  },
+  "peerDependencies": {
+    "jspm": ">= 0.16.12"
   },
   "devDependencies": {
     "chai": "^3.5.0",

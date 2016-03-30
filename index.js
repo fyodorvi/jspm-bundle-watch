@@ -13,6 +13,9 @@ var format = require('string-format');
 
 format.extend(String.prototype, {});
 
+//fixes issue with too many listeners warning on jspm config change
+process.setMaxListeners(Infinity);
+
 class Watcher {
 
     constructor (options) {
@@ -21,17 +24,17 @@ class Watcher {
 
         this._messages = {
 
-            jspmError: 'JSPM is not provided',
-            jspmConfigChanged: 'JSPM config was changed',
-            nothingToBuild: 'Nothing to build, check your configuration',
-            nothingToWatch: 'Nothing to watch, check your configuration',
+            jspmError: 'Error managing JSPM module!',
+            jspmConfigChanged: 'JSPM config was changed.',
+            nothingToBuild: 'Nothing to build, check your configuration!',
+            nothingToWatch: 'Nothing to watch, check your configuration!',
 
             app: {
                 buildingAll: 'Building entire app...',
                 buildingAfterError: 'Building after an error...',
                 buildingModules: 'Building app ({changes})...',
                 moduleChanged: 'Module \'{moduleName}\' was {event}.',
-                moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not imported in the application)',
+                moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not imported in the application).',
                 buildSuccess: 'App build finished successfully.',
                 buildFail: 'App build failed\n{error}'
             },
@@ -40,25 +43,18 @@ class Watcher {
                 buildingAfterError: 'Building unit tests after an error...',
                 buildingModules: 'Building unit tests ({changes})...',
                 moduleChanged: 'Module \'{moduleName}\' was {event}.',
-                moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not covered by unit tests)',
+                moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not covered by unit tests).',
                 buildSuccess: 'Unit tests build finished successfully.',
                 buildFail: 'Unit tests build failed\n{error}'
             }
 
         };
 
-        if (!options.jspm) {
-
-            throw new Error(this._messages.jspmError);
-
-        }
-
         this._eventQueue = [];
         this.emitter = new events.EventEmitter();
         this._path = this._path || path;
         this._globby = this._globby || globby;
         this._fs = this._fs || fs;
-        this._jspm = options.jspm;
         this._isDebugEnabled = options.debug;
         this._jspmConf = this._getJspmPackageJson();
 
@@ -143,8 +139,78 @@ class Watcher {
         return this.emitter.once.apply(this.emitter, arguments);
 
     }
+    
+    // Warning - impending hyper hacks. Buckle up!
+    // http://stackoverflow.com/questions/9210542/node-js-require-cache-possible-to-invalidate
+    /**
+     * Removes a module from the cache
+     */
+    _invalidateParentModule (moduleName) {
+
+        // Run over the cache looking for the files
+        // loaded by the specified module name
+        this._searchModuleCache(moduleName, mod => {
+
+            delete require.cache[mod.id];
+
+        });
+
+        // Remove cached paths to the module.
+        // Thanks to @bentael for pointing this out.
+        Object.keys(module.constructor._pathCache).forEach(cacheKey => {
+
+            if (cacheKey.indexOf(moduleName) > 0) {
+
+                delete module.constructor._pathCache[cacheKey];
+
+            }
+
+        });
+
+    };
+
+    /**
+     * Runs over the cache to search for all the cached
+     * files
+     */
+    _searchModuleCache (moduleName, callback) {
+
+        // Resolve the module identified by the specified name
+        var mod = require.resolve(path.normalize(process.cwd() + '/node_modules/' + moduleName));
+
+        // Check if the module has been resolved and found within
+        // the cache
+        if (mod && ((mod = require.cache[mod]) !== undefined)) {
+            // Recursively go over the results
+            (function run (mod) {
+                // Go over each of the module's children and
+                // run over it
+                mod.children.forEach(child => {
+                    run(child);
+                });
+
+                // Call the specified callback providing the
+                // found module
+                callback(mod);
+
+            })(mod);
+
+        }
+
+    };
 
     _initBuilder () {
+
+        try {
+
+            this._invalidateParentModule('jspm');
+            this._jspm = module.parent.require('jspm');
+
+        } catch(e) {
+
+            throw new Error(this._messages.jspmError);
+
+        }
 
         this._builder = new this._jspm.Builder();
 
@@ -624,7 +690,7 @@ class Watcher {
         }
 
         this._fs.writeFileSync(this._conf.tests.input, this._testsBuildState.importFile);
-        this._debug('Written tests import file to '+this._conf.tests.input);
+        this._debug('Written tests import file to ' + this._conf.tests.input);
 
     }
 

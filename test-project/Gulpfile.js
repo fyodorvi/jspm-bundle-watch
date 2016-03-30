@@ -46,8 +46,7 @@ var watcher = new JspmWatcher({
         watch: [paths.spec],
         input: resolveToApp('unit-tests.js'),
         output: path.join(paths.dist + 'unit-tests.js')
-    },
-    jspm: jspm
+    }
 });
 
 gulp.task('tdd', function (done) {

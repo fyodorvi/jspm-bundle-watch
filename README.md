@@ -18,6 +18,10 @@ As your project grows it may take enormous amount of time to reload the applicat
 
 Other solutions like `jspm-dev-builder` or `systemjs-hot-reloader` lack these features (especially first one).
 
+## Requirements
+
+Installed JSPM of at least 0.16.12 version within the project.
+
 ## Install
 
 ```sh
@@ -38,8 +42,7 @@ watcher = new JspmWatch({
       watch: ['src/**/*.js', 'src/**/*.html', 'src/**/*.css'],
       input: 'src/my-app.js',
       output: 'dist/my-app.js'
-   },
-   jspm: require('jspm')
+   }
 });
 
 watcher.start();
@@ -66,8 +69,7 @@ watcher = new JspmWatch({
       input: 'src/unit-tests.js', // this file will be auto-generated
       output: 'dist/unit-tests.js' // this file should be consumed by your test runner e.g. karma
    },
-   batchDelay: 250, // build delay when processing batch changes
-   jspm: require('jspm')
+   batchDelay: 250 // build delay when processing batch changes
 });
 
 watcher.start().on('change', function(event) {
@@ -91,17 +93,14 @@ var JspmWatch = require('jspm-watch');
 
 watcher = new JspmWatch({
     app: {
-          watch: ['src/**/*.js', 'src/**/*.html', 'src/**/*.css'],
-          input: 'src/my-app.js',
-          output: 'dist/my-app.js'
-       },
-    jspm: require('jspm')
+        watch: ['src/**/*.js', 'src/**/*.html', 'src/**/*.css'],
+        input: 'src/my-app.js',
+        output: 'dist/my-app.js'
+    }
 });
 ```
 
 ### Constructor options
-#### jspm
-You must provide your JSPM instance. At least `0.16.21` is required.
 #### app.watch
 Array or string of files to watch, will be passed to chokidar. You don't need to exclude `jspm_packages`, it's done by default. Tests files are excluded by default if `tests` section is provided.
 #### app.input
@@ -132,8 +131,7 @@ watcher = new JspmWatch({
        watch: ['src/**/*.spec.js'],
        input: 'src/unit-tests.js',
        output: 'dist/unit-tests.js'
-    },
-    jspm: require('jspm')
+    }
 });
 watcher.start();
 ```
@@ -237,6 +235,15 @@ An object, which properties include:
 ```
 ## Unit tests bundle approach described
 The idea is simple: JSPM Watch bundles every spec file *and* app files into single giant file which should be consumed by test runner. Otherwise it make take enormous amout of time to load all dependencies with karma-jspm, which makes tdd impossibly painfull. Since your project *should be* fully covered by tests, build time should be marginally the same for `watcher.start({ testsOnly: true })` and  `watcher.start()` since internally JSPM Watch uses single instance of SystemJS Builder, so cache is shared.
+
+## Change log
+
+### 0.1.9
+- JSPM is a peerDependency now, no need to pass it as a constructor option
+- Fixed JSPM config changes handling
+  
+### 0.1.0
+- Initial commit
 
 ## License
 MIT

@@ -32,6 +32,11 @@ module.exports = function(config) {
 
     files: [
       {
+        pattern: 'client/app/**/*',
+        included: false,
+        watched: false
+      },
+      {
         pattern: 'client/jspm_packages/system.js',
         watched: false
       },
@@ -58,8 +63,7 @@ module.exports = function(config) {
     ],
 
     proxies: {
-      // '/jspm_packages': '/base/jspm_packages',
-      // '/jspm.config.js': '/base/jspm.config.js'
+       '/base/client/app': 'client/app'
     },
 
     // list of files to exclude

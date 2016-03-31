@@ -40,7 +40,7 @@ var watcher = new JspmWatcher({
     app: {
         watch: [paths.css, paths.html, paths.js],
         input: resolveToApp('app.js'),
-        output: path.join(paths.dist + 'app.js')
+        output: path.join(paths.dist + '/app/app.js')
     },
     tests: {
         watch: [paths.spec],
@@ -111,7 +111,7 @@ gulp.task('serve', function () {
             baseDir: paths.dist,
             // serve our jspm dependencies with the client folder
             routes: {
-                '/app/app.js': './dist/app.js',
+                '/client': './client',
                 '/jspm.config.js': './jspm.config.js',
                 '/jspm_packages': './client/jspm_packages'
             }

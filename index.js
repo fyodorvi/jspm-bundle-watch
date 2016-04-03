@@ -28,6 +28,7 @@ class Watcher {
             jspmConfigChanged: 'JSPM config was changed.',
             nothingToBuild: 'Nothing to build, check your configuration!',
             nothingToWatch: 'Nothing to watch, check your configuration!',
+            tracingError: 'Oops! Tracing error happened. A process restart is required now.',
 
             app: {
                 buildingAll: 'Building entire app...',
@@ -493,9 +494,11 @@ class Watcher {
 
             } else {
 
-                this._logError('Oops! Tracing error happened. A process restart may be required now...');
+                if (this._appBuildState.tracedFiles.concat(this._testsBuildState.tracedFiles).length == 0) {
 
-                // I don't really know what to do
+                    this._logError(this._messages.tracingError);
+
+                }
 
             }
             

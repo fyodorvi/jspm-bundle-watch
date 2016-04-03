@@ -1,10 +1,10 @@
 {
   "name": "jspm-watch",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "File watcher that manages JSPM bundling and cache invalidation",
   "main": "index.js",
   "files": [
-    "lib",
+    "lib/progress.js",
     "index.js"
   ],
   "engines": {

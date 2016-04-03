@@ -237,7 +237,7 @@ The idea is simple: JSPM Watch bundles every spec file *and* app files into sing
 ## Change log
 
 ### 0.2.0
-- Changed `app.watch` to be an optional configuration param, by default JSPM Watch will use SystemJS trace to get the list of file
+- Changed `app.watch` to be an optional configuration param, by default JSPM Watch will use SystemJS trace to get the list of files
 - Added progress bar when building entire app
 - Unit tests import file is no longer generated and removed upon each file update, it's being written only when needed and removed only on process exit 
 

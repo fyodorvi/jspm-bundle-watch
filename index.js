@@ -10,6 +10,8 @@ var chalk = require('chalk');
 var events = require('events');
 var minimatch = require('minimatch');
 var format = require('string-format');
+var cp = require('child_process');
+var progress = cp.fork(`${__dirname}/lib/progress.js`);
 
 format.extend(String.prototype, {});
 
@@ -32,20 +34,22 @@ class Watcher {
 
             app: {
                 buildingAll: 'Building entire app...',
+                buildingProgressTemplate: 'Building entire app: [:bar] :percent',
                 buildingAfterError: 'Building after an error...',
                 buildingModules: 'Building app ({changes})...',
                 moduleChanged: 'Module \'{moduleName}\' was {event}.',
                 moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not imported in the application).',
-                buildSuccess: 'App build finished successfully.',
+                buildSuccess: 'App build finished successfully in {time}.',
                 buildFail: 'App build failed\n{error}'
             },
             tests: {
                 buildingAll: 'Building all unit tests...',
+                buildingProgressTemplate: 'Building all unit tests: [:bar] :percent',
                 buildingAfterError: 'Building unit tests after an error...',
                 buildingModules: 'Building unit tests ({changes})...',
                 moduleChanged: 'Module \'{moduleName}\' was {event}.',
                 moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not covered by unit tests).',
-                buildSuccess: 'Unit tests build finished successfully.',
+                buildSuccess: 'Unit tests build finished successfully in {time}.',
                 buildFail: 'Unit tests build failed\n{error}'
             }
 
@@ -111,6 +115,14 @@ class Watcher {
         this._debug('WatchExpression:', this._watchExpression);
         this._debug('Ignored:', this._watchIgnored);
 
+        progress.on('message', this._processProgressMessage.bind(this));
+        this._progressPromiseStorage = {};
+        
+        this._progressCall('init', {
+            logPrefix: chalk.blue(this._logPrefix),
+            template: this._messages.progressTemplate
+        })
+
     }
 
     start (options) {
@@ -151,65 +163,42 @@ class Watcher {
         return this.emitter.once.apply(this.emitter, arguments);
 
     }
-    
-    // Warning - impending hyper hacks. Buckle up!
-    // http://stackoverflow.com/questions/9210542/node-js-require-cache-possible-to-invalidate
-    /**
-     * Removes a module from the cache
-     */
-    _invalidateParentModule (moduleName) {
 
-        // Run over the cache looking for the files
-        // loaded by the specified module name
-        this._searchModuleCache(moduleName, mod => {
+    _progressCall (method) {
 
-            delete require.cache[mod.id];
+        let promiseId = Math.random();
+
+        let promise = new Promise((resolve, reject) => {
+
+            this._progressPromiseStorage[promiseId] = { resolve: resolve, reject: reject }
 
         });
 
-        // Remove cached paths to the module.
-        // Thanks to @bentael for pointing this out.
-        Object.keys(module.constructor._pathCache).forEach(cacheKey => {
+        progress.send({ id: promiseId, method: method, arguments: Array.prototype.slice.call(arguments, this._progressCall.length) });
+        
+        return promise;
+        
+    }
 
-            if (cacheKey.indexOf(moduleName) > 0) {
+    _processProgressMessage (message) {
+        
+        if (message.id && this._progressPromiseStorage[message.id]) {
+            
+            let promise = this._progressPromiseStorage[message.id];
+            
+            if (!message.hasError) {
 
-                delete module.constructor._pathCache[cacheKey];
-
+                promise.resolve(message.data);
+                
+            } else {
+                
+                promise.reject(message.error);
+                
             }
-
-        });
-
-    };
-
-    /**
-     * Runs over the cache to search for all the cached
-     * files
-     */
-    _searchModuleCache (moduleName, callback) {
-
-        // Resolve the module identified by the specified name
-        var mod = require.resolve(path.normalize(process.cwd() + '/node_modules/' + moduleName));
-
-        // Check if the module has been resolved and found within
-        // the cache
-        if (mod && ((mod = require.cache[mod]) !== undefined)) {
-            // Recursively go over the results
-            (function run (mod) {
-                // Go over each of the module's children and
-                // run over it
-                mod.children.forEach(child => {
-                    run(child);
-                });
-
-                // Call the specified callback providing the
-                // found module
-                callback(mod);
-
-            })(mod);
-
+            
         }
-
-    };
+        
+    }
 
     _initBuilder () {
 
@@ -455,9 +444,9 @@ class Watcher {
         this._debug('Tracing ' + traceTarget);
 
         return this._builder.trace(traceTarget).then(tree => {
-            
+
             let newTracedFiles = [];
-            
+
             for (var name in tree) {
 
                 let modulePath = tree[name].path;
@@ -501,7 +490,7 @@ class Watcher {
                 }
 
             }
-            
+
         });
 
     }
@@ -895,11 +884,7 @@ class Watcher {
 
     _bundle (options, state, messages) {
 
-        if (state.entireBuild) {
-
-            this._log(messages.buildingAll);
-
-        } else {
+        if (!state.entireBuild) {
 
             this._log(messages.buildingModules.format({
                 changes: this._formatChangedModules(state.changedModules)
@@ -909,19 +894,54 @@ class Watcher {
 
         state.inProgress = true;
         let buildStart = new Date().getTime();
+        let progressOptions = {
+            input: options.input,
+            app: !this._conf.app.skipBuild,
+            defaultMessage: messages.buildingAll,
+            progressTemplate: messages.buildingProgressTemplate
+        };
+
+        if (state.entireBuild) {
+            
+            this._progressCall('start', progressOptions);
+
+        }
 
         return this._builder.bundle(this._resolveModuleName(options.input, options.inputDir), options.output, options.buildOptions)
             .then(() => {
 
+                let executionTime = new Date().getTime() - buildStart;
+                
+                let notifySuccess = () => {
+
+                    this._log(messages.buildSuccess.format({ time: chalk.magenta(((executionTime ) / 1000).toFixed(2) + ' s' )}));
+                    
+                };
+
                 state.hasError = false;
                 state.changedModules = []; // all built, may clear changed modules list now
-                this._log(messages.buildSuccess);
+
+                if (state.entireBuild) {
+                    
+                    return this._progressCall('end', executionTime).then(notifySuccess);
+
+                } else {
+
+                    notifySuccess();
+                    
+                }
 
             })
             .catch((error) => {
 
                 state.hasError = true;
                 this._logError(messages.buildFail.format({ error: chalk.red(error) }));
+
+                if (state.entireBuild) {
+
+                    return this._progressCall('end');
+                    
+                }
 
             }).finally(() => {
 
@@ -947,6 +967,65 @@ class Watcher {
         return invalidated;
 
     }
+
+    // Warning - impending hyper hacks. Buckle up!
+    // http://stackoverflow.com/questions/9210542/node-js-require-cache-possible-to-invalidate
+    /**
+     * Removes a module from the cache
+     */
+    _invalidateParentModule (moduleName) {
+
+        // Run over the cache looking for the files
+        // loaded by the specified module name
+        this._searchModuleCache(moduleName, mod => {
+
+            delete require.cache[mod.id];
+
+        });
+
+        // Remove cached paths to the module.
+        // Thanks to @bentael for pointing this out.
+        Object.keys(module.constructor._pathCache).forEach(cacheKey => {
+
+            if (cacheKey.indexOf(moduleName) > 0) {
+
+                delete module.constructor._pathCache[cacheKey];
+
+            }
+
+        });
+
+    };
+
+    /**
+     * Runs over the cache to search for all the cached
+     * files
+     */
+    _searchModuleCache (moduleName, callback) {
+
+        // Resolve the module identified by the specified name
+        var mod = require.resolve(path.normalize(process.cwd() + '/node_modules/' + moduleName));
+
+        // Check if the module has been resolved and found within
+        // the cache
+        if (mod && ((mod = require.cache[mod]) !== undefined)) {
+            // Recursively go over the results
+            (function run (mod) {
+                // Go over each of the module's children and
+                // run over it
+                mod.children.forEach(child => {
+                    run(child);
+                });
+
+                // Call the specified callback providing the
+                // found module
+                callback(mod);
+
+            })(mod);
+
+        }
+
+    };
 
 }
 

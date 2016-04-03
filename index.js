@@ -65,13 +65,18 @@ class Watcher {
 
         this._setupOptions(options.app, this._conf.app);
 
+        this._watchExpression = [this._jspmConf.configFile, '!' + this._path.normalize(this._jspmConf.packages + '/**/*')];
+
         if (!this._conf.app.watch) {
 
-            throw new Error(this._messages.nothingToWatch);
+            this._debug('No custom watch for app supplied, using trace to get files to watch');
+            this._useTrace = true;
+
+        } else {
+
+            this._watchExpression.concat(this._conf.app.watch);
 
         }
-
-        this._watchExpression = [this._conf.app.watch, this._jspmConf.configFile, '!' + this._path.normalize(this._jspmConf.packages + '/**/*')];
 
         this._buildBatchDelay = options.batchDelay || 250;
         this._jspmConfigBuildDelay = 2000;
@@ -84,7 +89,7 @@ class Watcher {
 
         }
 
-        this._watchIgnored = this._conf.app.ignore ? [this._conf.app.ignore] : [];
+        this._watchIgnored = [];
 
         if (!this._conf.tests.skipBuild) {
 
@@ -123,6 +128,12 @@ class Watcher {
 
         this._initBuilder();
         this._initWatch();
+
+        if (this._useTrace && !this._conf.app.skipBuild) {
+
+            this._updateFilesToWatch(this._conf.app, this._appBuildState);
+
+        }
 
         return this;
 
@@ -219,6 +230,7 @@ class Watcher {
             entireBuild: true,
             hasError: false,
             changedModules: [],
+            tracedFiles: [],
             inProgress: false
         };
 
@@ -226,6 +238,7 @@ class Watcher {
             entireBuild: true,
             hasError: false,
             changedModules: [],
+            tracedFiles: [],
             importFile: '',
             shouldUpdateImportFile: true,
             inProgress: false
@@ -374,7 +387,11 @@ class Watcher {
 
         let watch = _.get(source, 'watch');
 
-        destination.watch = _.isArray(watch) ? watch : [watch];
+        if (watch) {
+
+            destination.watch = _.isArray(watch) ? watch : [watch];
+
+        }
 
         if (source && source.input && source.output) {
 
@@ -431,9 +448,88 @@ class Watcher {
 
     }
 
+    _updateFilesToWatch (options, state) {
+
+        let traceTarget = this._resolveModuleName(options.input, options.inputDir);
+        this._debug('Tracing ' + traceTarget);
+
+        return this._builder.trace(traceTarget).then(tree => {
+            
+            let newTracedFiles = [];
+            
+            for (var name in tree) {
+
+                let modulePath = tree[name].path;
+                if (modulePath) {
+
+                    modulePath = this._path.resolve(options.inputDir, modulePath);
+
+                    if (!minimatch(modulePath, '/**/' + this._jspmConf.packages + '/**/*')) {
+
+                        newTracedFiles.push(modulePath);
+
+                    }
+
+                }
+
+            }
+
+            this._processTracedFiles(newTracedFiles, state);
+
+            this._debug('Trace complete');
+
+
+        }).catch(error => {
+            
+            // ooops
+            let failedModule = /Loading (.*)/.exec(error.message);
+
+            this._debug('Trace failed due to an error:', error);
+
+            if (failedModule && failedModule[1]) {
+                
+                // when it fails we don't have valid tree to watch, but one file that caused an error
+                this._processTracedFiles([this._path.resolve(options.inputDir, failedModule[1])], state, true)
+
+            } else {
+
+                this._logError('Oops! Tracing error happened. A process restart may be required now...');
+
+                // I don't really know what to do
+
+            }
+            
+        });
+
+    }
+
+    _processTracedFiles (newTracedFiles, state, onlyAdd) {
+
+        _.difference(newTracedFiles, this._appBuildState.tracedFiles.concat(this._testsBuildState.tracedFiles)).forEach(file => {
+
+            this._watcher.add(file);
+            this._debug('Added '+file+' to watch list');
+
+        });
+
+        if (!onlyAdd) {
+
+            _.difference(state.tracedFiles, newTracedFiles).forEach(file => {
+
+                this._watcher.unwatch(file);
+                this._debug('Removed ' + file + ' from watch list');
+
+            });
+
+        }
+
+        state.tracedFiles = newTracedFiles;
+
+    }
+
     _initWatch () {
 
-        chokidar.watch(this._watchExpression, {
+        this._watcher = chokidar.watch(this._watchExpression, {
                 ignoreInitial: true,
                 persistent: true,
                 ignored: (filepath) => {
@@ -444,7 +540,7 @@ class Watcher {
             })
             .on('all', (event, filepath) => {
 
-                this._debug('Recieved chokidar event: ' + event + ', filepath: ' + filepath);
+                this._debug('Received chokidar event: ' + event + ', filepath: ' + filepath);
 
                 if (['add', 'unlink', 'change'].indexOf(event) > -1) {
 
@@ -711,7 +807,19 @@ class Watcher {
 
             }
 
-            this._fs.unlinkSync(this._conf.tests.input);
+            if (this._useTrace) {
+
+                this._updateFilesToWatch(this._conf.tests, this._testsBuildState).then(() => {
+
+                    this._fs.unlinkSync(this._conf.tests.input);
+
+                })
+
+            } else {
+
+                this._fs.unlinkSync(this._conf.tests.input);
+
+            }
 
             this.emitter.emit('change', {
                 type: 'tests',
@@ -759,6 +867,12 @@ class Watcher {
 
                 this._processEventQueue();
 
+                if (this._useTrace) {
+
+                    this._updateFilesToWatch(this._conf.app, this._appBuildState);
+
+                }
+
             }
 
         });
@@ -780,6 +894,7 @@ class Watcher {
         }
 
         state.inProgress = true;
+        let buildStart = new Date().getTime();
 
         return this._builder.bundle(this._resolveModuleName(options.input, options.inputDir), options.output, options.buildOptions)
             .then(() => {

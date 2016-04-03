@@ -38,7 +38,6 @@ var paths = {
 
 var watcher = new JspmWatcher({
     app: {
-        watch: [paths.css, paths.html, paths.js],
         input: resolveToApp('app.js'),
         output: path.join(paths.dist + '/app/app.js')
     },

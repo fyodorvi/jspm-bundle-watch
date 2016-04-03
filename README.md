@@ -39,7 +39,6 @@ var JspmWatch = require('jspm-watch');
 
 watcher = new JspmWatch({
    app: {
-      watch: ['src/**/*.js', 'src/**/*.html', 'src/**/*.css'],
       input: 'src/my-app.js',
       output: 'dist/my-app.js'
    }
@@ -55,7 +54,6 @@ var JspmWatch = require('jspm-watch');
 
 watcher = new JspmWatch({
    app: {
-      watch: ['src/**/*.js', 'src/**/*.html', 'src/**/*.css'],
       input: 'src/my-app.js',
       output: 'dist/my-app.js',
       buildOptions: {
@@ -101,8 +99,8 @@ watcher = new JspmWatch({
 ```
 
 ### Constructor options
-#### app.watch
-Array or string of files to watch, will be passed to chokidar. You don't need to exclude `jspm_packages`, it's done by default. Tests files are excluded by default if `tests` section is provided.
+#### app.watch (optional)
+Since 0.2.0 by default jspm-watch uses SystemJS Builder `trace()` method to watch file changes. Use `app.watch` to override it and provide an array or string of files to watch that will be passed to chokidar. You don't need to exclude `jspm_packages`, it's done by default. Tests files are excluded by default if `tests` section is provided.
 #### app.input
 You app entry point.
 #### app.output
@@ -237,6 +235,9 @@ An object, which properties include:
 The idea is simple: JSPM Watch bundles every spec file *and* app files into single giant file which should be consumed by test runner. Otherwise it make take enormous amout of time to load all dependencies with karma-jspm, which makes tdd impossibly painfull. Since your project *should be* fully covered by tests, build time should be marginally the same for `watcher.start({ testsOnly: true })` and  `watcher.start()` since internally JSPM Watch uses single instance of SystemJS Builder, so cache is shared.
 
 ## Change log
+
+### 0.2.0
+- Changed `app.watch` to be an optional configuration param, by default JSPM Watch will use SystemJS trace to get the list of files
 
 ### 0.1.9
 - JSPM is a peerDependency now, no need to pass it as a constructor option

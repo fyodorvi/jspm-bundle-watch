@@ -464,7 +464,7 @@ class Watcher {
 
                     modulePath = this._path.resolve(options.inputDir, modulePath);
 
-                    if (!minimatch(modulePath, '/**/' + this._jspmConf.packages + '/**/*')) {
+                    if (minimatch(modulePath, '!'+this._path.resolve(this._jspmConf.packages) + '/**/*') && !this._isSpecFile(modulePath))  {
 
                         newTracedFiles.push(modulePath);
 
@@ -524,6 +524,30 @@ class Watcher {
         }
 
         state.tracedFiles = newTracedFiles;
+
+    }
+
+    _isSpecFile (filepath) {
+
+        if (!this._conf.tests.watch || !this._conf.tests.watch.length) {
+
+            return false;
+
+        }
+
+        let result = true;
+
+        _.forEach(this._conf.tests.watch, pattern => {
+
+            if (!minimatch(filepath, pattern)) {
+
+                result = false;
+
+            }
+
+        });
+
+        return result;
 
     }
 
@@ -618,20 +642,7 @@ class Watcher {
 
         }
 
-        let isSpecFile;
-
-        isSpecFile = true;
-
-        _.forEach(this._conf.tests.watch, pattern => {
-
-            if (!minimatch(filepath, pattern)) {
-
-                isSpecFile = false;
-                return false;
-
-            }
-
-        });
+        let isSpecFile = this._isSpecFile(filepath);
 
         if (this._conf.tests.skipBuild && isSpecFile) {
 

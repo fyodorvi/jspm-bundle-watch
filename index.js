@@ -28,7 +28,7 @@ class Watcher {
             jspmConfigChanged: 'JSPM config was changed.',
             nothingToBuild: 'Nothing to build, check your configuration!',
             nothingToWatch: 'Nothing to watch, check your configuration!',
-            tracingError: 'Oops! Tracing error happened. A process restart is required now.',
+            tracingError: 'Oops! Tracing error happened.A p rocess restart is required now.',
 
             app: {
                 buildingAll: 'Building entire app...',
@@ -66,7 +66,7 @@ class Watcher {
 
         this._setupOptions(options.app, this._conf.app);
 
-        this._watchExpression = [this._jspmConf.configFile, '!' + this._path.normalize(this._jspmConf.packages + '/**/*')];
+        this._watchExpression = [this._jspmConf.configFile, '!' + this._jspmConf.packages  + '/**/*'];
 
         if (!this._conf.app.watch) {
 
@@ -86,7 +86,7 @@ class Watcher {
 
         if (!this._conf.tests.skipBuild) {
 
-            this._watchExpression = this._watchExpression.concat(options.tests.watch);
+            this._watchExpression = this._watchExpression.concat(this._conf.tests.watch);
 
         }
 
@@ -379,7 +379,7 @@ class Watcher {
         return {
             configFile: path.resolve(pjson.configFile),
             baseUrl: pjson.directories.baseURL,
-            packages: pjson.directories.packages
+            packages: path.resolve(pjson.directories.packages)
         };
 
     }
@@ -390,7 +390,7 @@ class Watcher {
 
         if (watch) {
 
-            destination.watch = _.isArray(watch) ? watch : [watch];
+            destination.watch = (_.isArray(watch) ? watch : [watch]).map(pattern => this._path.resolve(pattern));
 
         }
 
@@ -465,7 +465,7 @@ class Watcher {
 
                     modulePath = this._path.resolve(options.inputDir, modulePath);
 
-                    if (minimatch(modulePath, '!'+this._path.resolve(this._jspmConf.packages) + '/**/*') && !this._isSpecFile(modulePath))  {
+                    if (minimatch(modulePath, '!' + this._jspmConf.packages + '/**/*') && !this._isSpecFile(modulePath))  {
 
                         newTracedFiles.push(modulePath);
 
@@ -781,7 +781,7 @@ class Watcher {
 
             this._testsBuildState.importFile = '';
 
-            let specFilesPattern = this._conf.tests.watch.concat(['!' + this._path.normalize(this._jspmConf.packages + '/**/*')]);
+            let specFilesPattern = this._conf.tests.watch.concat(['!' + this._jspmConf.packages + '/**/*']);
 
             this._debug('Tests search pattern is ', specFilesPattern);
 

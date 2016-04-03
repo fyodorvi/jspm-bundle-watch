@@ -10,6 +10,9 @@ var chalk = require('chalk');
 var events = require('events');
 var minimatch = require('minimatch');
 var format = require('string-format');
+var ProgressBar = require('progress');
+var cp = require('child_process');
+var progressInfo = cp.fork(`${__dirname}/builder.js`);
 
 format.extend(String.prototype, {});
 
@@ -35,7 +38,7 @@ class Watcher {
                 buildingModules: 'Building app ({changes})...',
                 moduleChanged: 'Module \'{moduleName}\' was {event}.',
                 moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not imported in the application).',
-                buildSuccess: 'App build finished successfully.',
+                buildSuccess: 'App build finished successfully in {time}.',
                 buildFail: 'App build failed\n{error}'
             },
             tests: {
@@ -44,7 +47,7 @@ class Watcher {
                 buildingModules: 'Building unit tests ({changes})...',
                 moduleChanged: 'Module \'{moduleName}\' was {event}.',
                 moduleNoBundle: 'Module \'{moduleName}\' was {event}, but it\'s not in the build cache (not covered by unit tests).',
-                buildSuccess: 'Unit tests build finished successfully.',
+                buildSuccess: 'Unit tests build finished successfully in {time}.',
                 buildFail: 'Unit tests build failed\n{error}'
             }
 
@@ -110,6 +113,11 @@ class Watcher {
         this._debug('WatchExpression:', this._watchExpression);
         this._debug('Ignored:', this._watchIgnored);
 
+        this._readProgressInfo();
+
+        builder.on('message', this._processBuilderMessage.bind(this));
+        this._builderPromiseStorage = {};
+
     }
 
     start (options) {
@@ -150,80 +158,46 @@ class Watcher {
         return this.emitter.once.apply(this.emitter, arguments);
 
     }
-    
-    // Warning - impending hyper hacks. Buckle up!
-    // http://stackoverflow.com/questions/9210542/node-js-require-cache-possible-to-invalidate
-    /**
-     * Removes a module from the cache
-     */
-    _invalidateParentModule (moduleName) {
 
-        // Run over the cache looking for the files
-        // loaded by the specified module name
-        this._searchModuleCache(moduleName, mod => {
+    _builderCall (method) {
 
-            delete require.cache[mod.id];
+        let promiseId = Math.random();
+
+        let promise = new Promise((resolve, reject) => {
+
+            this._builderPromiseStorage[promiseId] = { resolve: resolve, reject: reject }
 
         });
 
-        // Remove cached paths to the module.
-        // Thanks to @bentael for pointing this out.
-        Object.keys(module.constructor._pathCache).forEach(cacheKey => {
+        builder.send({ id: promiseId, method: method, arguments: Array.prototype.slice.call(arguments, this._builderCall.length) });
+        
+        return promise;
+        
+    }
 
-            if (cacheKey.indexOf(moduleName) > 0) {
+    _processBuilderMessage (message) {
+        
+        if (message.id && this._builderPromiseStorage[message.id]) {
+            
+            let promise = this._builderPromiseStorage[message.id];
+            
+            if (!message.hasError) {
 
-                delete module.constructor._pathCache[cacheKey];
-
+                promise.resolve(message.data);
+                
+            } else {
+                
+                promise.reject(message.error);
+                
             }
-
-        });
-
-    };
-
-    /**
-     * Runs over the cache to search for all the cached
-     * files
-     */
-    _searchModuleCache (moduleName, callback) {
-
-        // Resolve the module identified by the specified name
-        var mod = require.resolve(path.normalize(process.cwd() + '/node_modules/' + moduleName));
-
-        // Check if the module has been resolved and found within
-        // the cache
-        if (mod && ((mod = require.cache[mod]) !== undefined)) {
-            // Recursively go over the results
-            (function run (mod) {
-                // Go over each of the module's children and
-                // run over it
-                mod.children.forEach(child => {
-                    run(child);
-                });
-
-                // Call the specified callback providing the
-                // found module
-                callback(mod);
-
-            })(mod);
-
+            
         }
-
-    };
+        
+    }
 
     _initBuilder () {
-
-        try {
-
-            this._invalidateParentModule('jspm');
-            this._jspm = module.parent.require('jspm');
-
-        } catch(e) {
-
-            throw new Error(this._messages.jspmError);
-
-        }
-
-        this._builder = new this._jspm.Builder();
+        
+        this._builderCall('init');
 
         // initial build state
         this._appBuildState = {
@@ -453,10 +427,10 @@ class Watcher {
         let traceTarget = this._resolveModuleName(options.input, options.inputDir);
         this._debug('Tracing ' + traceTarget);
 
-        return this._builder.trace(traceTarget).then(tree => {
-            
+        return this._builderCall('trace', traceTarget).then(tree => {
+
             let newTracedFiles = [];
-            
+
             for (var name in tree) {
 
                 let modulePath = tree[name].path;
@@ -498,7 +472,7 @@ class Watcher {
                 // I don't really know what to do
 
             }
-            
+
         });
 
     }
@@ -879,6 +853,81 @@ class Watcher {
 
     }
 
+    _getProgressInfoKey(options) {
+
+        return options.input + ',app:' + !this._conf.app.skipBuild + ',tests:' + !this._conf.tests.skipBuild;
+
+    }
+
+    _readProgressInfo() {
+
+        try {
+
+            this._progressInfo = JSON.parse(this._fs.readFileSync(this._path.normalize(__dirname + '/.progress-info')));
+
+        }
+        catch (e) {
+
+            this._progressInfo = {};
+
+        }
+
+        this._debug('Progress info is', this._progressInfo);
+
+    }
+
+    _writeProgressInfo(executionTime, options) {
+
+        this._progressInfo[this._getProgressInfoKey(options)] = executionTime;
+
+        try {
+
+            fs.writeFile( this._path.normalize(__dirname + '/.progress-info'), JSON.stringify( this._progressInfo ), "utf8" );
+
+        }
+        catch (e) {
+
+            this._debug('Progress info write failed', e);
+
+        }
+
+    }
+
+    _initProgressBar(options) {
+
+        let baseExecutionTime = this._progressInfo[this._getProgressInfoKey(options)];
+
+        if (baseExecutionTime > 0) {
+
+            let executionStart = new Date().getTime();
+
+            this._progressBar = new ProgressBar(chalk.blue(this._logPrefix)+' Building entire app [:bar] :percent :etas', {
+                complete: '=',
+                incomplete: ' ',
+                width: 20,
+                total: 100
+            });
+
+            this._progressBarInterval = setInterval(() => {
+
+                let percent = (new Date().getTime()- executionStart) / baseExecutionTime;
+
+                if (percent <= 100 && !this._progressBar.complete) {
+
+                    this._progressBar.update(percent);
+
+                } else {
+
+                    clearInterval(this._progressBarInterval);
+
+                }
+
+            }, 100);
+
+        }
+
+    }
+
     _bundle (options, state, messages) {
 
         if (state.entireBuild) {
@@ -896,25 +945,54 @@ class Watcher {
         state.inProgress = true;
         let buildStart = new Date().getTime();
 
-        return this._builder.bundle(this._resolveModuleName(options.input, options.inputDir), options.output, options.buildOptions)
-            .then(() => {
+        if (state.entireBuild) {
+
+            this._initProgressBar(options);
+
+        }
+
+        return this._builderCall('bundle', {
+            input: this._resolveModuleName(options.input, options.inputDir),
+            output: options.output,
+            buildOptions: options.buildOptions
+        }).then(() => {
+
+                if (this._progressBar) {
+
+
+                    clearInterval(this._progressBarInterval);
+                    this._progressBar.update(100);
+
+                }
+
+                let executionTime = new Date().getTime() - buildStart;
+
+                if (state.entireBuild) {
+
+                    this._writeProgressInfo(executionTime, options);
+
+                }
 
                 state.hasError = false;
                 state.changedModules = []; // all built, may clear changed modules list now
-                this._log(messages.buildSuccess);
+                this._log(messages.buildSuccess.format({ time: chalk.magenta(((executionTime ) / 1000).toFixed(2) + ' s' )}));
+
+                state.entireBuild = false;
+                state.inProgress = false;
 
             })
             .catch((error) => {
 
                 state.hasError = true;
                 this._logError(messages.buildFail.format({ error: chalk.red(error) }));
-
-            }).finally(() => {
-
                 state.entireBuild = false;
                 state.inProgress = false;
 
-            });
+            })/*.finally(() => {
+
+
+
+            })*/;
 
     }
 

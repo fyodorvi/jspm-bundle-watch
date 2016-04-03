@@ -117,6 +117,8 @@ class Watcher {
 
         progress.on('message', this._processProgressMessage.bind(this));
         this._progressPromiseStorage = {};
+
+        process.on('exit', this._removeTestsImportFile.bind(this));
         
         this._progressCall('init', {
             logPrefix: chalk.blue(this._logPrefix),
@@ -764,11 +766,13 @@ class Watcher {
 
         if (this._testsBuildState.shouldUpdateImportFile) {
 
+            this._removeTestsImportFile();
+
             this._invalidate(this._resolveModuleName(this._conf.tests.input, this._conf.app.inputDir));
 
             this._debug('Generating tests import file');
 
-            this._testsBuildState.importFile = '';
+            let importFile = '';
 
             let specFilesPattern = this._conf.tests.watch.concat(['!' + this._jspmConf.packages + '/**/*']);
 
@@ -778,18 +782,31 @@ class Watcher {
 
             files.forEach(file => {
 
-                this._testsBuildState.importFile += "import './" + this._path.relative(this._path.dirname(this._conf.tests.input), file).replace(/\\/g, '/') + "';\n";
+                importFile += "import './" + this._path.relative(this._path.dirname(this._conf.tests.input), file).replace(/\\/g, '/') + "';\n";
 
             });
 
-            this._debug('Tests import file is', this._testsBuildState.importFile);
+            this._debug('Tests import file is', importFile);
 
             this._testsBuildState.shouldUpdateImportFile = false;
 
+            this._fs.writeFileSync(this._conf.tests.input, importFile);
+            this._debug('Written tests import file to ' + this._conf.tests.input);
+
         }
 
-        this._fs.writeFileSync(this._conf.tests.input, this._testsBuildState.importFile);
-        this._debug('Written tests import file to ' + this._conf.tests.input);
+    }
+
+    _removeTestsImportFile () {
+
+        try {
+
+            this._fs.unlinkSync(this._conf.tests.input);
+
+        } catch(e) {
+
+
+        }
 
     }
 
@@ -812,15 +829,7 @@ class Watcher {
 
             if (this._useTrace) {
 
-                this._updateFilesToWatch(this._conf.tests, this._testsBuildState).then(() => {
-
-                    this._fs.unlinkSync(this._conf.tests.input);
-
-                })
-
-            } else {
-
-                this._fs.unlinkSync(this._conf.tests.input);
+                this._updateFilesToWatch(this._conf.tests, this._testsBuildState);
 
             }
 

@@ -237,7 +237,8 @@ The idea is simple: JSPM Watch bundles every spec file *and* app files into sing
 ## Change log
 
 ### 0.2.0
-- Changed `app.watch` to be an optional configuration param, by default JSPM Watch will use SystemJS trace to get the list of files
+- Changed `app.watch` to be an optional configuration param, by default JSPM Watch will use SystemJS trace to get the list of file
+- Added progress bar when building entire app
 
 ### 0.1.9
 - JSPM is a peerDependency now, no need to pass it as a constructor option

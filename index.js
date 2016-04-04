@@ -11,7 +11,6 @@ var events = require('events');
 var minimatch = require('minimatch');
 var format = require('string-format');
 var cp = require('child_process');
-var progress = cp.fork(`${__dirname}/lib/progress.js`);
 
 format.extend(String.prototype, {});
 
@@ -115,19 +114,22 @@ class Watcher {
         this._debug('WatchExpression:', this._watchExpression);
         this._debug('Ignored:', this._watchIgnored);
 
-        progress.on('message', this._processProgressMessage.bind(this));
         this._progressPromiseStorage = {};
 
         process.on('exit', this._removeTestsImportFile.bind(this));
-        
-        this._progressCall('init', {
-            logPrefix: chalk.blue(this._logPrefix),
-            template: this._messages.progressTemplate
-        })
 
     }
 
     start (options) {
+
+        this._progressProcess = cp.fork(`${__dirname}/lib/progress.js`);
+
+        this._progressProcess.on('message', this._processProgressMessage.bind(this));
+
+        this._progressCall('init', {
+            logPrefix: chalk.blue(this._logPrefix),
+            template: this._messages.progressTemplate
+        });
 
         if (options && options.appOnly) {
 
@@ -176,30 +178,30 @@ class Watcher {
 
         });
 
-        progress.send({ id: promiseId, method: method, arguments: Array.prototype.slice.call(arguments, this._progressCall.length) });
-        
+        this._progressProcess.send({ id: promiseId, method: method, arguments: Array.prototype.slice.call(arguments, this._progressCall.length) });
+
         return promise;
-        
+
     }
 
     _processProgressMessage (message) {
-        
+
         if (message.id && this._progressPromiseStorage[message.id]) {
-            
+
             let promise = this._progressPromiseStorage[message.id];
-            
+
             if (!message.hasError) {
 
                 promise.resolve(message.data);
-                
+
             } else {
-                
+
                 promise.reject(message.error);
-                
+
             }
-            
+
         }
-        
+
     }
 
     _initBuilder () {
@@ -472,14 +474,14 @@ class Watcher {
 
 
         }).catch(error => {
-            
+
             // ooops
             let failedModule = /Loading (.*)/.exec(error.message);
 
             this._debug('Trace failed due to an error:', error);
 
             if (failedModule && failedModule[1]) {
-                
+
                 // when it fails we don't have valid tree to watch, but one file that caused an error
                 this._processTracedFiles([this._path.resolve(options.inputDir, failedModule[1])], state, true)
 
@@ -911,7 +913,7 @@ class Watcher {
         };
 
         if (state.entireBuild) {
-            
+
             this._progressCall('start', progressOptions);
 
         }
@@ -920,24 +922,24 @@ class Watcher {
             .then(() => {
 
                 let executionTime = new Date().getTime() - buildStart;
-                
+
                 let notifySuccess = () => {
 
                     this._log(messages.buildSuccess.format({ time: chalk.magenta(((executionTime ) / 1000).toFixed(2) + ' s' )}));
-                    
+
                 };
 
                 state.hasError = false;
                 state.changedModules = []; // all built, may clear changed modules list now
 
                 if (state.entireBuild) {
-                    
+
                     return this._progressCall('end', executionTime).then(notifySuccess);
 
                 } else {
 
                     notifySuccess();
-                    
+
                 }
 
             })
@@ -949,7 +951,7 @@ class Watcher {
                 if (state.entireBuild) {
 
                     return this._progressCall('end');
-                    
+
                 }
 
             }).finally(() => {

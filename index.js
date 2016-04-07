@@ -29,7 +29,7 @@ class Watcher {
             jspmConfigChanged: 'JSPM config was changed.',
             nothingToBuild: 'Nothing to build, check your configuration!',
             nothingToWatch: 'Nothing to watch, check your configuration!',
-            tracingError: 'Oops! Tracing error happened.A p rocess restart is required now.',
+            tracingError: 'Oops! Tracing error happened. A process restart is required now.',
 
             app: {
                 buildingAll: 'Building entire app...',
@@ -69,7 +69,7 @@ class Watcher {
 
         this._setupOptions(options.app, this._conf.app);
 
-        this._watchExpression = [this._jspmConf.configFile, '!' + this._jspmConf.packages  + '/**/*'];
+        this._watchExpression = [this._jspmConf.configFile, '!' + this._jspmConf.packages + '/**/*'];
 
         if (!this._conf.app.watch) {
 
@@ -174,11 +174,18 @@ class Watcher {
 
         let promise = new Promise((resolve, reject) => {
 
-            this._progressPromiseStorage[promiseId] = { resolve: resolve, reject: reject }
+            this._progressPromiseStorage[promiseId] = {
+                resolve: resolve,
+                reject: reject
+            }
 
         });
 
-        this._progressProcess.send({ id: promiseId, method: method, arguments: Array.prototype.slice.call(arguments, this._progressCall.length) });
+        this._progressProcess.send({
+            id: promiseId,
+            method: method,
+            arguments: Array.prototype.slice.call(arguments, this._progressCall.length)
+        });
 
         return promise;
 
@@ -211,7 +218,7 @@ class Watcher {
             this._invalidateParentModule('jspm');
             this._jspm = module.parent.require('jspm');
 
-        } catch(e) {
+        } catch (e) {
 
             throw new Error(this._messages.jspmError);
 
@@ -456,13 +463,7 @@ class Watcher {
                 let modulePath = tree[name].path;
                 if (modulePath) {
 
-                    modulePath = this._path.resolve(options.inputDir, modulePath);
-
-                    if (minimatch(modulePath, '!' + this._jspmConf.packages + '/**/*') && !this._isSpecFile(modulePath))  {
-
-                        newTracedFiles.push(modulePath);
-
-                    }
+                    newTracedFiles.push(this._path.resolve(options.inputDir, modulePath));
 
                 }
 
@@ -472,18 +473,32 @@ class Watcher {
 
             this._debug('Trace complete');
 
-
         }).catch(error => {
 
             // ooops
-            let failedModule = /Loading (.*)/.exec(error.message);
+            let failedModules = [];
 
             this._debug('Trace failed due to an error:', error);
 
-            if (failedModule && failedModule[1]) {
+            let match;
+            let regExp = /Loading (.*)/g;
 
-                // when it fails we don't have valid tree to watch, but one file that caused an error
-                this._processTracedFiles([this._path.resolve(options.inputDir, failedModule[1])], state, true)
+            do {
+
+                match = regExp.exec(error.message);
+
+                if (match) {
+
+                    this._debug('Found module ' + match[1] + ' in the error');
+                    failedModules.push(this._path.resolve(options.inputDir, match[1]));
+
+                }
+
+            } while (match);
+
+            if (failedModules.length > 0) {
+
+                this._processTracedFiles(failedModules, state, true)
 
             } else {
 
@@ -501,10 +516,14 @@ class Watcher {
 
     _processTracedFiles (newTracedFiles, state, onlyAdd) {
 
+        newTracedFiles = newTracedFiles.filter(file => {
+            return file != this._conf.tests.input && minimatch(file, '!' + this._jspmConf.packages + '/**/*') && !this._isSpecFile(file);
+        });
+
         _.difference(newTracedFiles, this._appBuildState.tracedFiles.concat(this._testsBuildState.tracedFiles)).forEach(file => {
 
             this._watcher.add(file);
-            this._debug('Added '+file+' to watch list');
+            this._debug('Added ' + file + ' to watch list');
 
         });
 
@@ -770,7 +789,7 @@ class Watcher {
 
             this._removeTestsImportFile();
 
-            this._invalidate(this._resolveModuleName(this._conf.tests.input, this._conf.app.inputDir));
+            this._invalidate(this._resolveModuleName(this._conf.tests.input, this._conf.tests.inputDir));
 
             this._debug('Generating tests import file');
 
@@ -805,8 +824,7 @@ class Watcher {
 
             this._fs.unlinkSync(this._conf.tests.input);
 
-        } catch(e) {
-
+        } catch (e) {
 
         }
 
@@ -925,7 +943,7 @@ class Watcher {
 
                 let notifySuccess = () => {
 
-                    this._log(messages.buildSuccess.format({ time: chalk.magenta(((executionTime ) / 1000).toFixed(2) + ' s' )}));
+                    this._log(messages.buildSuccess.format({ time: chalk.magenta(((executionTime ) / 1000).toFixed(2) + ' s') }));
 
                 };
 

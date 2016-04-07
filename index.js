@@ -397,14 +397,14 @@ class Watcher {
         if (source && source.input && source.output) {
 
             destination.input = this._path.resolve(source.input);
-            destination.inputDir = path.resolve(this._jspmConf.baseUrl) || this._path.dirname(destination.input);
+            destination.inputDir = path.resolve(this._jspmConf.baseUrl) || this._path.dirname(source.input);
             destination.output = this._path.resolve(source.output);
             destination.buildOptions = _.extend({
                 minify: false,
                 mangle: false,
                 sourceMaps: true,
                 lowResSourceMaps: true
-            }, destination.buildOptions || {}, { sfx: false });
+            }, source.buildOptions || {}, { sfx: false });
             destination.ignore = source.ignore;
 
         } else {

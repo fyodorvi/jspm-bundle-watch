@@ -247,15 +247,17 @@ class Watcher {
 
         if (!this._conf.app.skipBuild) {
 
-            this._bundleApp().then(() => {
-
-                if (!_.get(this._conf, 'tests.skipBuild') && !this._appBuildState.hasError) {
+            this._builder.loadConfig(this._jspmConf.configFile)
+                .then(() => {
+                    return this._bundleApp();
+                })
+                .then(() => {
+                    if (!_.get(this._conf, 'tests.skipBuild') && !this._appBuildState.hasError) {
 
                     this._bundleTests();
 
-                }
-
-            });
+                    }
+                });
 
         } else if (!this._conf.tests.skipBuild) {
 

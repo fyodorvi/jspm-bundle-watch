@@ -120,7 +120,8 @@ class Watcher {
 
     }
 
-    start (options) {
+    start (options, cb) {
+        cb = cb || function() {};
 
         this._progressProcess = cp.fork(`${__dirname}/lib/progress.js`);
 
@@ -143,8 +144,10 @@ class Watcher {
 
         }
 
-        this._initBuilder();
         this._initWatch();
+        this._initBuilder().then(function() {
+          cb();
+        });
 
         if (this._useTrace && !this._conf.app.skipBuild) {
 
@@ -247,11 +250,11 @@ class Watcher {
 
         if (!this._conf.app.skipBuild) {
 
-            this._bundleApp().then(() => {
+            return this._bundleApp().then(() => {
 
                 if (!_.get(this._conf, 'tests.skipBuild') && !this._appBuildState.hasError) {
 
-                    this._bundleTests();
+                  return this._bundleTests();
 
                 }
 
@@ -259,7 +262,7 @@ class Watcher {
 
         } else if (!this._conf.tests.skipBuild) {
 
-            this._bundleTests();
+            return this._bundleTests();
 
         } else {
 

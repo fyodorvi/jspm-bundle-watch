@@ -236,6 +236,9 @@ The idea is simple: JSPM Watch bundles every spec file *and* app files into sing
 
 ## Change log
 
+### 0.3.0
+- Moves JSPM Builder into separate process to avoid annoying memory leak on config change
+
 ### 0.2.0
 - Changed `app.watch` to be an optional configuration param, by default JSPM Watch will use SystemJS trace to get the list of files
 - Added progress bar when building entire app

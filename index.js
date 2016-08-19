@@ -343,21 +343,30 @@ class Watcher {
 
     }
 
+    _paramPackageJson(){
+        
+        if(!this.pjson){        
+        
+            try {
+
+                this.pjson = JSON.parse(fs.readFileSync(path.resolve('package.json')));
+
+            }
+            catch (e) {
+
+                this.pjson = {};
+
+            }
+
+        }
+
+        return this.pjson;
+    }
+
     // borrowed from karma-jspm
     _getJspmPackageJson () {
 
-        var pjson = {};
-
-        try {
-
-            pjson = JSON.parse(fs.readFileSync(path.resolve('package.json')));
-
-        }
-        catch (e) {
-
-            pjson = {};
-
-        }
+        var pjson = this._paramPackageJson();
 
         if (pjson.jspm) {
 
@@ -374,6 +383,10 @@ class Watcher {
                 pjson.directories.packages = path.join(pjson.directories.baseURL, 'jspm_packages');
             if (!pjson.configFile)
                 pjson.configFile = path.join(pjson.directories.baseURL, 'config.js');
+
+        } else {
+
+            pjson.directories.baseURL = ".";
 
         }
 
@@ -392,6 +405,19 @@ class Watcher {
         if (watch) {
 
             destination.watch = (_.isArray(watch) ? watch : [watch]).map(pattern => this._path.resolve(pattern));
+
+        }
+
+        //input source not defined? We can param from package.json.jspm.main
+        if (source && !source.input) {
+            
+            var pj = this._paramPackageJson();
+
+            if (pj.jspm && pj.jspm.main) {
+
+                source.input = pj.jspm.main;
+
+            }
 
         }
 

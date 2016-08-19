@@ -1,16 +1,18 @@
 'use strict';
 
-var chokidar = require('chokidar');
-var globby = require('globby');
-var fs = require('fs-extra');
-var _ = require('lodash');
-var path = require('path');
-var fancyLog = require('fancy-log');
-var chalk = require('chalk');
-var events = require('events');
-var minimatch = require('minimatch');
-var format = require('string-format');
-var cp = require('child_process');
+const chokidar = require('chokidar');
+const globby = require('globby');
+const fs = require('fs-extra');
+const _ = require('lodash');
+const path = require('path');
+const fancyLog = require('fancy-log');
+const chalk = require('chalk');
+const events = require('events');
+const minimatch = require('minimatch');
+const format = require('string-format');
+const cp = require('child_process');
+const JspmWorker = require('./lib/jspm-worker-orchestrator');
+const Q = require('q');
 
 format.extend(String.prototype, {});
 
@@ -56,6 +58,7 @@ class Watcher {
 
         this._eventQueue = [];
         this.emitter = new events.EventEmitter();
+        this._jspmWorker = new JspmWorker();
         this._path = this._path || path;
         this._globby = this._globby || globby;
         this._fs = this._fs || fs;
@@ -143,14 +146,17 @@ class Watcher {
 
         }
 
-        this._initBuilder();
-        this._initWatch();
+        this._initBuilder().then(() => {
 
-        if (this._useTrace && !this._conf.app.skipBuild) {
+            this._initWatch();
 
-            this._updateFilesToWatch(this._conf.app, this._appBuildState);
+            if (this._useTrace && !this._conf.app.skipBuild) {
 
-        }
+                this._updateFilesToWatch(this._conf.app, this._appBuildState);
+
+            }
+
+        });
 
         return this;
 
@@ -213,59 +219,54 @@ class Watcher {
 
     _initBuilder () {
 
-        try {
+        this._debug('Starting new JSPM Worker...');
 
-            this._invalidateParentModule('jspm');
-            this._jspm = module.parent.require('jspm');
+        return this._jspmWorker.start().then(() => {
 
-        } catch (e) {
+            this._debug('JSPM Worker started');
 
-            throw new Error(this._messages.jspmError);
+            // initial build state
+            this._appBuildState = {
+                entireBuild: true,
+                hasError: false,
+                changedModules: [],
+                tracedFiles: [],
+                inProgress: false
+            };
 
-        }
+            this._testsBuildState = {
+                entireBuild: true,
+                hasError: false,
+                changedModules: [],
+                tracedFiles: [],
+                importFile: '',
+                shouldUpdateImportFile: true,
+                inProgress: false
+            };
 
-        this._builder = new this._jspm.Builder();
+            if (!this._conf.app.skipBuild) {
 
-        // initial build state
-        this._appBuildState = {
-            entireBuild: true,
-            hasError: false,
-            changedModules: [],
-            tracedFiles: [],
-            inProgress: false
-        };
+                this._bundleApp().then(() => {
 
-        this._testsBuildState = {
-            entireBuild: true,
-            hasError: false,
-            changedModules: [],
-            tracedFiles: [],
-            importFile: '',
-            shouldUpdateImportFile: true,
-            inProgress: false
-        };
+                    if (!_.get(this._conf, 'tests.skipBuild') && !this._appBuildState.hasError) {
 
-        if (!this._conf.app.skipBuild) {
+                        this._bundleTests();
 
-            this._bundleApp().then(() => {
+                    }
 
-                if (!_.get(this._conf, 'tests.skipBuild') && !this._appBuildState.hasError) {
+                });
 
-                    this._bundleTests();
+            } else if (!this._conf.tests.skipBuild) {
 
-                }
+                this._bundleTests();
 
-            });
+            } else {
 
-        } else if (!this._conf.tests.skipBuild) {
+                throw new Error(this._messages.nothingToBuild);
 
-            this._bundleTests();
+            }
 
-        } else {
-
-            throw new Error(this._messages.nothingToBuild);
-
-        }
+        });
 
     }
 
@@ -454,7 +455,7 @@ class Watcher {
         let traceTarget = this._resolveModuleName(options.input, options.inputDir);
         this._debug('Tracing ' + traceTarget);
 
-        return this._builder.trace(traceTarget).then(tree => {
+        return this._jspmWorker.execute('trace', { target: traceTarget }).then(tree => {
 
             let newTracedFiles = [];
 
@@ -485,7 +486,7 @@ class Watcher {
 
             do {
 
-                match = regExp.exec(error.message);
+                match = regExp.exec(error);
 
                 if (match) {
 
@@ -628,8 +629,9 @@ class Watcher {
 
         this._debug('Processing file event: ' + event + ', filepath: ' + filepath);
 
-        let moduleEvent;
         let moduleName;
+
+        let defer = Q.defer();
 
         if (this._jspmConf.processingChange || (filepath == this._jspmConf.configFile)) {
 
@@ -653,7 +655,9 @@ class Watcher {
 
             }, this._jspmConfigBuildDelay);
 
-            return false;
+            defer.resolve();
+
+            return defer.promise;
 
         }
 
@@ -662,7 +666,10 @@ class Watcher {
         if (this._conf.tests.skipBuild && isSpecFile) {
 
             this._debug('File is unit test, unit test build is disabled, skipping bundle');
-            return false;
+
+            defer.resolve();
+
+            return defer.promise;
 
         }
 
@@ -677,48 +684,63 @@ class Watcher {
 
             }
 
-            this._invalidate(moduleName); //always invalidate spec files
+            //always invalidate spec files
+            this._invalidate(moduleName).then(() => {
 
-            moduleEvent = {
-                moduleName: moduleName,
-                event: event,
-                buildState: this._testsBuildState,
-                bundleType: this._appBuildState.changedModules.length > 0 ? 'app' : 'tests',
-                shouldBundle: true,
-                messages: this._messages.tests
-            };
+                defer.resolve({
+                    moduleName: moduleName,
+                    event: event,
+                    buildState: this._testsBuildState,
+                    bundleType: this._appBuildState.changedModules.length > 0 ? 'app' : 'tests',
+                    shouldBundle: true,
+                    messages: this._messages.tests
+                });
+
+            });
 
         } else if (this._conf.app.skipBuild) {
 
             moduleName = this._resolveModuleName(filepath, this._conf.tests.inputDir);
 
             //should build just tests when watching tests
-            moduleEvent = {
-                moduleName: moduleName,
-                event: event,
-                bundleType: 'tests',
-                buildState: this._testsBuildState,
-                shouldBundle: this._invalidate(moduleName) || this._appBuildState.hasError,
-                messages: this._messages.tests
-            };
+            this._invalidate(moduleName).then(invalidateResult => {
+
+                defer.resolve({
+                    moduleName: moduleName,
+                    event: event,
+                    bundleType: 'tests',
+                    buildState: this._testsBuildState,
+                    shouldBundle: invalidateResult || this._appBuildState.hasError,
+                    messages: this._messages.tests
+                });
+
+            });
 
         } else {
 
             moduleName = this._resolveModuleName(filepath, this._conf.app.inputDir);
 
             //build all
-            moduleEvent = {
-                moduleName: moduleName,
-                event: event,
-                bundleType: 'app',
-                buildState: this._appBuildState,
-                shouldBundle: this._invalidate(moduleName) || this._appBuildState.hasError,
-                messages: this._messages.app
-            };
+            this._invalidate(moduleName).then(invalidateResult => {
+
+                defer.resolve({
+                    moduleName: moduleName,
+                    event: event,
+                    bundleType: 'app',
+                    buildState: this._appBuildState,
+                    shouldBundle: invalidateResult || this._appBuildState.hasError,
+                    messages: this._messages.app
+                });
+
+            });
 
         }
 
-        this._processModuleEvent(moduleEvent);
+        return defer.promise.then(moduleEvent => {
+
+            this._processModuleEvent(moduleEvent);
+
+        });
 
     }
 
@@ -785,36 +807,44 @@ class Watcher {
 
     _generateTestsImportFile () {
 
+        let defer = Q.defer();
+
         if (this._testsBuildState.shouldUpdateImportFile) {
 
             this._removeTestsImportFile();
 
-            this._invalidate(this._resolveModuleName(this._conf.tests.input, this._conf.tests.inputDir));
+            return this._invalidate(this._resolveModuleName(this._conf.tests.input, this._conf.tests.inputDir)).then(() => {
 
-            this._debug('Generating tests import file');
+                this._debug('Generating tests import file');
 
-            let importFile = '';
+                let importFile = '';
 
-            let specFilesPattern = this._conf.tests.watch.concat(['!' + this._jspmConf.packages + '/**/*']);
+                let specFilesPattern = this._conf.tests.watch.concat(['!' + this._jspmConf.packages + '/**/*']);
 
-            this._debug('Tests search pattern is ', specFilesPattern);
+                this._debug('Tests search pattern is ', specFilesPattern);
 
-            let files = this._globby.sync(specFilesPattern);
+                let files = this._globby.sync(specFilesPattern);
 
-            files.forEach(file => {
+                files.forEach(file => {
 
-                importFile += "import './" + this._path.relative(this._path.dirname(this._conf.tests.input), file).replace(/\\/g, '/') + "';\n";
+                    importFile += "import './" + this._path.relative(this._path.dirname(this._conf.tests.input), file).replace(/\\/g, '/') + "';\n";
+
+                });
+
+                this._debug('Tests import file is', importFile);
+
+                this._testsBuildState.shouldUpdateImportFile = false;
+
+                this._fs.writeFileSync(this._conf.tests.input, importFile);
+                this._debug('Written tests import file to ' + this._conf.tests.input);
 
             });
 
-            this._debug('Tests import file is', importFile);
-
-            this._testsBuildState.shouldUpdateImportFile = false;
-
-            this._fs.writeFileSync(this._conf.tests.input, importFile);
-            this._debug('Written tests import file to ' + this._conf.tests.input);
-
         }
+
+        defer.resolve();
+
+        return defer.promise;
 
     }
 
@@ -837,37 +867,39 @@ class Watcher {
             state: this._testsBuildState
         });
 
-        this._generateTestsImportFile();
+        return this._generateTestsImportFile().then(() => {
 
-        return this._bundle(this._conf.tests, this._testsBuildState, this._messages.tests).then(() => {
+            return this._bundle(this._conf.tests, this._testsBuildState, this._messages.tests).then(() => {
 
-            if (!this._testsBuildState.hasError) {
+                if (!this._testsBuildState.hasError) {
 
-                this._fs.appendFileSync(this._conf.tests.output, "\n System.import('" + this._path.relative(this._conf.tests.inputDir, this._conf.tests.input).replace(/\\/g, '/') + "');");
+                    this._fs.appendFileSync(this._conf.tests.output, "\n System.import('" + this._path.relative(this._conf.tests.inputDir, this._conf.tests.input).replace(/\\/g, '/') + "');");
 
-            }
+                }
 
-            if (this._useTrace) {
+                if (this._useTrace) {
 
-                this._updateFilesToWatch(this._conf.tests, this._testsBuildState);
+                    this._updateFilesToWatch(this._conf.tests, this._testsBuildState);
 
-            }
+                }
 
-            this.emitter.emit('change', {
-                type: 'tests',
-                hasError: this._testsBuildState.hasError
+                this.emitter.emit('change', {
+                    type: 'tests',
+                    hasError: this._testsBuildState.hasError
+                });
+
+                if (!this._started) {
+
+                    this.emitter.emit('started');
+                    this._started = true;
+
+                }
+
+                this._processEventQueue();
+
             });
 
-            if (!this._started) {
-
-                this.emitter.emit('started');
-                this._started = true;
-
-            }
-
-            this._processEventQueue();
-
-        });
+        })
 
     }
 
@@ -936,8 +968,11 @@ class Watcher {
 
         }
 
-        return this._builder.bundle(this._resolveModuleName(options.input, options.inputDir), options.output, options.buildOptions)
-            .then(() => {
+        return this._jspmWorker.execute('bundle', {
+            input: this._resolveModuleName(options.input, options.inputDir),
+            output: options.output,
+            buildOptions: options.buildOptions
+        }).then(() => {
 
                 let executionTime = new Date().getTime() - buildStart;
 
@@ -961,7 +996,7 @@ class Watcher {
                 }
 
             })
-            .catch((error) => {
+            .catch(error => {
 
                 state.hasError = true;
                 this._logError(messages.buildFail.format({ error: chalk.red(error) }));
@@ -983,78 +1018,18 @@ class Watcher {
 
     _invalidate (moduleName) {
 
-        if (!this._builder) {
+        let defer = Q.defer();
 
-            return false;
+        this._jspmWorker.execute('invalidate', { moduleName }).then(invalidated => {
 
-        }
+            this._debug('Invalidating module from cache: ' + moduleName + ' ' + (invalidated ? 'SUCCESS' : 'FAIL'));
+            defer.resolve(invalidated);
 
-        let invalidated = this._builder.invalidate(moduleName).length > 0;
+        });
 
-        this._debug('Invalidating module from cache: ' + moduleName + ' ' + (invalidated ? 'SUCCESS' : 'FAIL'));
-
-        return invalidated;
+        return defer.promise;
 
     }
-
-    // Warning - impending hyper hacks. Buckle up!
-    // http://stackoverflow.com/questions/9210542/node-js-require-cache-possible-to-invalidate
-    /**
-     * Removes a module from the cache
-     */
-    _invalidateParentModule (moduleName) {
-
-        // Run over the cache looking for the files
-        // loaded by the specified module name
-        this._searchModuleCache(moduleName, mod => {
-
-            delete require.cache[mod.id];
-
-        });
-
-        // Remove cached paths to the module.
-        // Thanks to @bentael for pointing this out.
-        Object.keys(module.constructor._pathCache).forEach(cacheKey => {
-
-            if (cacheKey.indexOf(moduleName) > 0) {
-
-                delete module.constructor._pathCache[cacheKey];
-
-            }
-
-        });
-
-    };
-
-    /**
-     * Runs over the cache to search for all the cached
-     * files
-     */
-    _searchModuleCache (moduleName, callback) {
-
-        // Resolve the module identified by the specified name
-        var mod = require.resolve(path.normalize(process.cwd() + '/node_modules/' + moduleName));
-
-        // Check if the module has been resolved and found within
-        // the cache
-        if (mod && ((mod = require.cache[mod]) !== undefined)) {
-            // Recursively go over the results
-            (function run (mod) {
-                // Go over each of the module's children and
-                // run over it
-                mod.children.forEach(child => {
-                    run(child);
-                });
-
-                // Call the specified callback providing the
-                // found module
-                callback(mod);
-
-            })(mod);
-
-        }
-
-    };
 
 }
 

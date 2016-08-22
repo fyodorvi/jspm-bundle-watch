@@ -377,18 +377,12 @@ class Watcher {
 
         pjson.directories = pjson.directories || {};
 
-        if (pjson.directories.baseURL) {
-
-            if (!pjson.directories.packages)
-                pjson.directories.packages = path.join(pjson.directories.baseURL, 'jspm_packages');
-            if (!pjson.configFile)
-                pjson.configFile = path.join(pjson.directories.baseURL, 'config.js');
-
-        } else {
-
+        if (!pjson.directories.baseURL)
             pjson.directories.baseURL = ".";
-
-        }
+        if (!pjson.directories.packages)
+            pjson.directories.packages = path.join(pjson.directories.baseURL, 'jspm_packages');
+        if (!pjson.configFile)
+            pjson.configFile = path.join(pjson.directories.baseURL, 'config.js');
 
         return {
             configFile: path.resolve(pjson.configFile),

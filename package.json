@@ -1,10 +1,12 @@
 {
   "name": "jspm-watch",
-  "version": "0.2.5",
+  "version": "0.3.0-beta",
   "description": "File watcher that manages JSPM bundling and cache invalidation",
   "main": "index.js",
   "files": [
     "lib/progress.js",
+    "lib/jspm-worker.js",
+    "lib/jspm-worker-orchestrator.js",
     "index.js"
   ],
   "engines": {
@@ -37,7 +39,10 @@
     "globby": "^4.0.0",
     "lodash": "^4.6.1",
     "minimatch": "^3.0.0",
+    "node-ipc": "^7.0.0",
     "progress": "^1.1.8",
+    "q": "^1.4.1",
+    "short-id": "0.1.0-1",
     "string-format": "^0.5.0",
     "time-stamp": "^1.0.0"
   },

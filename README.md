@@ -5,6 +5,15 @@ Inspired by [jspm-dev-builder](https://github.com/jackfranklin/jspm-dev-builder)
 ## Why
 As your project grows it may take enormous amount of time to reload the application after a file change. JSPM Watch solves that issue by pre-bundling the app, which takes some time at first, but then upon any file change it invalidates it from cache and re-bundles the app, which takes about a second.
 
+### Table of Contents
+- [Features](#features)
+- [Requirements](#requirements)
+- [Install](#install)
+- [Usage](#usage)
+- [Documentation](#documentation)
+- [Events](#events)
+- [Change log](#change-log)
+
 ## Features
 
 - proper dependencies addition/removal handling: ideally, no need to restart the process **ever**
@@ -46,6 +55,7 @@ watcher = new JspmWatch({
 
 watcher.start();
 ```
+> Tip: The "input" attribute of the "app" key, is optional if [jspm.main](https://github.com/jspm/registry/wiki/Configuring-Packages-for-jspm#main-entry-point) is defined in package.json
 
 ### Extended configuration with unit tests build
 
@@ -235,6 +245,11 @@ An object, which properties include:
 The idea is simple: JSPM Watch bundles every spec file *and* app files into single giant file which should be consumed by test runner. Otherwise it make take enormous amout of time to load all dependencies with karma-jspm, which makes tdd impossibly painfull. Since your project *should be* fully covered by tests, build time should be marginally the same for `watcher.start({ testsOnly: true })` and  `watcher.start()` since internally JSPM Watch uses single instance of SystemJS Builder, so cache is shared.
 
 ## Change log
+
+### 0.3.0
+- input attribute of app, is optional if jspm.main is defined in package.json
+- baseURL is auto assumed "." instead of causing app build failure
+- Moves JSPM Builder into separate process to avoid annoying memory leak on config change
 
 ### 0.2.0
 - Changed `app.watch` to be an optional configuration param, by default JSPM Watch will use SystemJS trace to get the list of files

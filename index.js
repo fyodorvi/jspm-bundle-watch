@@ -81,7 +81,7 @@ class Watcher {
 
         } else {
 
-            this._watchExpression.concat(this._conf.app.watch);
+            this._watchExpression = this._watchExpression.concat(this._conf.app.watch);
 
         }
 

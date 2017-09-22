@@ -154,6 +154,9 @@ Same as `app.buildOptions`.
 #### batchDelay
 Delay in milliseconds before build will be fired. Default is `250`.
 
+#### debug
+
+Turns on debug output. Useful when trying to understand problems. Default is `false`.
 
 ### start([options])
 Returns instance of JSPM Watch for chaining.

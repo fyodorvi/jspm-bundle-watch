@@ -154,6 +154,14 @@ Same as `app.buildOptions`.
 #### batchDelay
 Delay in milliseconds before build will be fired. Default is `250`.
 
+#### usePolling
+
+Turns on [chokidar polling](https://github.com/paulmillr/chokidar#performance) option. Try to use it
+if you are having trouble with fs events. Default is `false`.
+
+#### debug
+
+Turns on debug output. Useful when trying to understand problems. Default is `false`.
 
 ### start([options])
 Returns instance of JSPM Watch for chaining.

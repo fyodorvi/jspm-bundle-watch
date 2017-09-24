@@ -63,6 +63,7 @@ class Watcher {
         this._globby = this._globby || globby;
         this._fs = this._fs || fs;
         this._isDebugEnabled = options.debug;
+        this._usePolling = options.usePolling;
         this._jspmConf = this._getJspmPackageJson();
 
         this._conf = {
@@ -592,6 +593,7 @@ class Watcher {
         this._watcher = chokidar.watch(this._watchExpression, {
                 ignoreInitial: true,
                 persistent: true,
+                usePolling: this._usePolling,
                 ignored: (filepath) => {
 
                     return _.includes(this._watchIgnored, this._path.resolve(filepath));

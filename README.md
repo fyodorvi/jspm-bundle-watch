@@ -179,7 +179,7 @@ Tells watcher to watch only app changes ingnoring tests.
 watcher.start({ appOnly: true });
 ```
 #### Tests only
-Tells watcher to watch only tests changes ingnoring app. 
+Tells watcher to watch only tests changes ingnoring app.
 ```javascript
 watcher.start({ testsOnly: true });
 ```
@@ -194,7 +194,7 @@ watcher.on('started', method); // equivalent of watcher.emitter.on
 watcher.once('change', method);  // equivalent of watcher.emitter.once
 ```
 
-## Events 
+## Events
 
 ### started
 Emitted when JSPM Watch started and done initial build (both app and tests if configured). May be usefull for task runner.
@@ -202,7 +202,7 @@ Emitted when JSPM Watch started and done initial build (both app and tests if co
 gulp.task('watch', function(done) {
     watcher.start().on('started', function() {
        done();
-    }); 
+    });
 })
 ```
 
@@ -218,7 +218,7 @@ watcher.start().on('change', function(event) {
           karmaServer.refreshFiles();
        }
     }
-}); 
+});
 ```
 #### event.type
 Possible options are `'app'` and `'tests'`. Indicates which build has happend.
@@ -235,7 +235,7 @@ Emitter when JSPM Watch is going to perform a build of any kind. May be usefull 
             fs.unlinkSync(paths.src+'/styles.css');
         });
     }
-}); 
+});
 ```
 #### event.type
 Possible options are `'app'` and `'tests'`. Indicates which build has happend.
@@ -254,6 +254,9 @@ The idea is simple: JSPM Watch bundles every spec file *and* app files into sing
 
 ## Change log
 
+### 1.0.2
+- added usePolling option
+
 ### 0.3.0
 - input attribute of app, is optional if jspm.main is defined in package.json
 - baseURL is auto assumed "." instead of causing app build failure
@@ -262,12 +265,12 @@ The idea is simple: JSPM Watch bundles every spec file *and* app files into sing
 ### 0.2.0
 - Changed `app.watch` to be an optional configuration param, by default JSPM Watch will use SystemJS trace to get the list of files
 - Added progress bar when building entire app
-- Unit tests import file is no longer generated and removed upon each file update, it's being written only when needed and removed only on process exit 
+- Unit tests import file is no longer generated and removed upon each file update, it's being written only when needed and removed only on process exit
 
 ### 0.1.9
 - JSPM is a peerDependency now, no need to pass it as a constructor option
 - Fixed JSPM config changes handling
-  
+
 ### 0.1.0
 - Initial commit
 

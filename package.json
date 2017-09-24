@@ -1,7 +1,8 @@
 {
   "name": "jspm-watch",
-  "version": "1.0.1",
-  "description": "File watcher that manages JSPM bundling and cache invalidation",
+  "version": "1.0.2",
+  "description":
+    "File watcher that manages JSPM bundling and cache invalidation",
   "main": "index.js",
   "files": [
     "lib/progress.js",
@@ -19,11 +20,7 @@
     "type": "git",
     "url": "git+https://github.com/fyodorvi/jspm-watch.git"
   },
-  "keywords": [
-    "jspm",
-    "watch",
-    "bundle"
-  ],
+  "keywords": ["jspm", "watch", "bundle"],
   "author": "Fyodor Yakimchouk <fedor.jj@gmail.com>",
   "license": "MIT",
   "bugs": {
